@@ -873,11 +873,12 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
   function findState(stateOrName, base) {
     var isStr = isString(stateOrName),
         name  = isStr ? stateOrName : stateOrName.name,
-        path  = name.indexOf(".") === 0 || name.indexOf("^") === 0;
+        path  = name.indexOf(".") === 0 || name.indexOf("^") === 0,
+        rel = name.split(".");
 
     if (path) {
       if (!base) throw new Error("No reference point given for path '"  + name + "'");
-      var rel = name.split("."), i = 0, pathLength = rel.length, current = base;
+      var i = 0, pathLength = rel.length, current = base;
 
       for (; i < pathLength; i++) {
         if (rel[i] === "" && i === 0) {
@@ -895,6 +896,39 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       name = current.name + (current.name && rel ? "." : "") + rel;
     }
     var state = states[name];
+
+    // If the state is relative and we haven't found it yet,
+    // we can try to look up the state by traversing the
+    // parent ancestry and seeing if our state shows up.
+    //
+    // This allows the following state syntax to work:
+    //
+    //    .state('foo')
+    //    .state('bar', { parent: 'foo' })
+    // 
+    // as opposed to the more traditional:
+    //
+    //    .state('foo')
+    //    .state('foo.bar')
+    //
+    if(!state && rel){
+      state = states[rel];
+      if(state && state.parent){
+        var currentParent = state.parent;
+        var parents = [];
+        parents.push(state.toString().split(".").reverse()[0]);
+        while(currentParent){
+          parents.push(currentParent.toString().split(".").reverse()[0]);
+          currentParent = currentParent.parent;
+
+          // short-circuit the traversal if we've already identified
+          // the relative state we're looking for 
+          if(parents.join(".").indexOf(rel) >= 0){
+            break;
+          }
+        }
+      }
+    }
 
     if (state && (isStr || (!isStr && (state === stateOrName || state.self === stateOrName)))) {
       return state;
