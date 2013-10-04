@@ -111,88 +111,91 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
     return stateName.indexOf(".") === 0 || stateName.indexOf("^") === 0;
   }
 
+  function filter(collection, fn){
+    var results = [];
+    for(var i=0; i<collection.length ; i++){
+      if(fn(collection[i], i)){
+        results.push(collection[i]);
+      }
+    }
+    return results;
+  }
+
+  function filterString(collection, str){
+    return filter(collection, function(val){ return val !== str; });
+  }
+
   function findState(stateOrName, base) {
     var isStr = isString(stateOrName),
         name  = isStr ? stateOrName : stateOrName.name,
         path  = isRelative(name),
-        rel = name.split(".");
+        parts = filterString(name.split("."), ""),
+        parents = [],
+        rel   = null;
     
     console.log("---------------------------- findState -------------------------------");
-    console.log("Name: " + name);
-    console.log("rel: " + rel);
-    console.log("base: " + base);
+    console.log("Name: " + name + "   base: " + base);
 
     if (path) {
       if (!base) throw new Error("No reference point given for path '"  + name + "'");
-      var i = 0, pathLength = rel.length, current = base;
+      var i = 0, pathLength = parts.length, current = base;
+
+      parents.push(current.name);
 
       for (; i < pathLength; i++) {
-        if (rel[i] === "" && i === 0) {
+        if (parts[i] === "^") {
+          if (!current.parent) throw new Error("Path '" + name + "' not valid for state '" + base.name + "'");
+          current = current.parent;
+          parents.push(current.name);
+          continue;
+        } else if (parts[i] === "" && i === 0) {
           current = base;
           continue;
         }
-        if (rel[i] === "^") {
-          if (!current.parent) throw new Error("Path '" + name + "' not valid for state '" + base.name + "'");
-          current = current.parent;
-          continue;
-        }
+
         break;
       }
-      rel = rel.slice(i).join(".");
+      parts = parts.slice(i);
+      rel = parts.join(".");
       name = current.name + (current.name && rel ? "." : "") + rel;
     }
-    console.log("lookup: " + name);
 
     var state = states[name];
-    if(!state){
-      var parent;
-      possibleState = states[rel];
-      if(possibleState){
-        parent        = possibleState.parent;
-        if(parent && parent.name === base.name){
-          console.log("possible: " + possibleState.name);
-          state = possibleState;
+
+    parents = filterString(parents, "")
+//    console.log(parents.concat(parts.slice(0, parts.length -1)));
+    console.log("parents: ", parents);
+    console.log("parts: ", parts);
+
+    if(!state && parts.length >= 1){
+      var possibleName;
+      var possibleState;
+      for(var j=0 ; j < parts.length; j++){
+        possibleName = parts.slice(j);
+        possibleState = states[possibleName];
+        console.log("possibleName: " + possibleName +  "    possibleState: " + possibleState);
+
+//        if(possibleState && possibleState.parent && possibleState.parent.name !== ""){
+        if(possibleState && possibleState.parent && possibleState.parent.name !== ""){
+          var nparents = parents.concat(parts.slice(0, parts.length -1));
+          console.log("nparents: ", nparents);
+
+//          console.log(parents.join('.'), possibleState.parent.name, parents.join('.').indexOf(possibleState.parent.name))
+          if(possibleState.parent && parents.join('.').indexOf(possibleState.parent.name) >= 0){
+            state = possibleState;
+            break;
+          }
         }
       }
     }
 
-    // If the state is relative and we haven't found it yet,
-    // we can try to look up the state by traversing the
-    // parent ancestry and seeing if our state shows up.
-    //
-    // This allows the following state syntax to work:
-    //
-    //    .state('foo')
-    //    .state('bar', { parent: 'foo' })
-    // 
-    // as opposed to the more traditional:
-    //
-    //    .state('foo')
-    //    .state('foo.bar')
-    //
-    // if(!state && rel){
-    //   possibleState = states[rel];
-    //   if(possibleState && possibleState.parent){
-    //     var currentParent = possibleState.parent;
-    //     var parents = [];
-    //     console.log('---------------------------------: ' + rel);
-    //     parents.push(possibleState.toString().split(".").reverse()[0]);
-    //     while(currentParent){
-    //       parents.push(currentParent.toString().split(".").reverse()[0]);
-    //       console.log("  before: " + parents.join('.'));
-  
-    //       currentParent = currentParent.parent;
+// $state.go("^.home.child"); $q.flush();
 
-    //       // short-circuit the traversal if we've already identified
-    //       // the relative state we're looking for 
-    //       if(parents.join(".").indexOf(rel) >= 0){
-    //         state = possibleState;
-    //         console.log("  after: " + parents.join('.'));
-    //         break;
-    //       }
-    //     }
-    //   }
-    // } 
+// .state('about', { url: "/about" })
+// .state('home', { url: "/" })
+// .state('home.item', { url: "front/:id" })
+// .state('child', { parent: 'home', url: '/child' })
+
 
     if (state && (isStr || (!isStr && (state === stateOrName || state.self === stateOrName)))) {
       return state;

@@ -37,7 +37,7 @@ reporter = 'dots';
 // these are default values, just to show available options
 
 // web server port
-port = 8080;
+port = 8081;
 
 // enable / disable colors in the output (reporters and logs)
 colors = true;
